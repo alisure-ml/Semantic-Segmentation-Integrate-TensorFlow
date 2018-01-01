@@ -3,10 +3,9 @@ from Data import DataVOC2012Train
 from Data import DataVOC2012Test
 from Data import DataVOC2012Val
 from Data import ImageToTFRecordTest
-from TrainDeepLabV3 import TrainDeepLabV3  # [513, 513]
+from TrainDeepLabV3 import TrainDeepLabV3
 from TestDeepLabV3 import TestDeepLabV3
 from ValDeepLabV3 import ValDeepLabV3
-from TrainPSPNet import TrainPSPNet  # [720, 720]
 
 
 class Main(object):
@@ -16,20 +15,19 @@ class Main(object):
         if run_type == 1:
             self.data = DataVOC2012Train(data_file="data/VOC2012/train.tfrecord",
                                          number_classes=19, input_size=list([513, 513]),
-                                         batch_size=1, random_scale=True, random_flip=True, ignore_label=255)
+                                         batch_size=1, random_scale=True, random_flip=True)
             self.train = TrainDeepLabV3(self.data, total_step=total_step, result_root="dist", name="DeepLabV3",
                                         summary_path="summary", model_path="model", model_name="model.ckpt")
             self.train.train(save_freq)
         elif run_type == 2:
             self.data = DataVOC2012Val(data_file="data/VOC2012/train.tfrecord",
-                                       number_classes=19, input_size=list([513, 513]),
-                                       batch_size=1, ignore_label=255)
+                                       number_classes=19, input_size=list([513, 513]), batch_size=1)
             self.val = ValDeepLabV3(self.data, result_root="dist", name="DeepLabV3",
                                     model_path="model", model_name="model.ckpt")
             self.val.val()
         elif run_type == 3:
             data_path = "input/test"
-            record_dir = os.path.join("input", "test.tfrecord")
+            record_dir = data_path + ".tfrecord"
             data_list = [os.path.join(data_path, data_file) for data_file in os.listdir(data_path)]
             ImageToTFRecordTest(data_list, record_dir).run()
 
