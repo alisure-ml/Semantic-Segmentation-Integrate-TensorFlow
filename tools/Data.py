@@ -95,12 +95,92 @@ class ImageToTFRecordVOC2012(object):
     pass
 
 
+# 数据增强
+# 有三种用法：
+#   1.训练：此时image/annotation不为空，random_scale/random_filp/random_adjust为True
+#   2.验证：此时image/annotation不为空，random_scale/random_filp/random_adjust为False
+#   3.测试：此时image不为空，annotation为空，random_scale/random_filp/random_adjust为False
+class DataAug(object):
+
+    def __init__(self, image, annotation, input_size, random_scale, random_flip, random_adjust):
+        self.image = image
+        self.annotation = annotation
+        self.input_size = input_size
+
+        # 是否随机缩放
+        self._random_scale = random_scale
+        # 是否随机左右翻转
+        self._random_flip = random_flip
+        # 是否随机调整颜色
+        self._random_adjust = random_adjust
+
+        # 图像均值
+        self._image_mean = np.array((103.939, 116.779, 123.68), dtype=np.float32)
+        pass
+
+    def __call__(self):
+        # 更换通道
+        img_r, img_g, img_b = tf.split(axis=2, num_or_size_splits=3, value=self.image)
+        self.image = tf.cast(tf.concat(axis=2, values=[img_b, img_g, img_r]), dtype=tf.float32)
+
+        # 减均值
+        self.image -= self._image_mean
+
+        # 随机缩放
+        if self._random_scale:
+            self.image, self.annotation = self._image_scaling(self.image, self.annotation)
+        # 随机翻转
+        if self._random_flip:
+            self.image, self.annotation = self._image_flipping(self.image, self.annotation)
+        # 随机调整颜色
+        if self._random_adjust:
+            self.image, self.annotation = self._image_adjust(self.image, self.annotation)
+
+        # 改变大小
+        self.image = tf.image.resize_images(self.image, self.input_size, method=tf.image.ResizeMethod.BILINEAR)
+        if self.annotation is None:  # 用于测试，此时没有annotation
+            return self.image
+        self.annotation = tf.image.resize_images(self.annotation, self.input_size,
+                                                 method=tf.image.ResizeMethod.BILINEAR)
+        return self.image, self.annotation
+
+    # 随机伸缩
+    @staticmethod
+    def _image_scaling(image, annotation):
+        scale = tf.random_uniform([1], minval=0.5, maxval=2.0, dtype=tf.float32, seed=None)
+        h_new = tf.to_int32(tf.multiply(tf.to_float(tf.shape(image)[0]), scale))
+        w_new = tf.to_int32(tf.multiply(tf.to_float(tf.shape(image)[1]), scale))
+        new_shape = tf.squeeze(tf.stack([h_new, w_new]), axis=[1])
+
+        image = tf.image.resize_images(image, new_shape)
+        annotation = tf.image.resize_nearest_neighbor(tf.expand_dims(annotation, 0), new_shape)
+        annotation = tf.squeeze(annotation, axis=[0])
+        return image, annotation
+
+    # 随机左右反转
+    @staticmethod
+    def _image_flipping(image, annotation):
+        left_right_random = tf.random_uniform([1], 0, 1.0, dtype=tf.float32)[0]
+        mirror = tf.less(tf.stack([1.0, left_right_random, 1.0]), 0.5)
+        mirror = tf.boolean_mask([0, 1, 2], mirror)
+
+        image = tf.reverse(image, mirror)
+        annotation = tf.reverse(annotation, mirror)
+        return image, annotation
+
+    # 随机调整颜色
+    @staticmethod
+    def _image_adjust(image, annotation):
+        return image, annotation
+
+    pass
+
+
 # 训练Data
 class DataVOC2012Train(object):
 
-    def __init__(self, data_file, number_classes, input_size,
-                 batch_size, random_scale=True, random_flip=True, ignore_label=255):
-
+    def __init__(self, data_file, number_classes, input_size, batch_size,
+                 random_scale=True, random_flip=True, random_adjust=True):
         # 类别数
         self.number_classes = number_classes
         # 输入大小
@@ -110,37 +190,16 @@ class DataVOC2012Train(object):
 
         # 数据文件
         self._data_file = data_file
-        # 是否随机缩放
-        self._random_scale = random_scale
-        # 是否随机左右翻转
-        self._random_flip = random_flip
-        # 忽略得标签（padding时使用）
-        self._ignore_label = ignore_label
-
-        # 图像均值
-        self._image_mean = np.array((103.939, 116.779, 123.68), dtype=np.float32)
-
-        # color map
-        self.label_colors = [(0, 0, 0),  # 0=background
-                             (128, 0, 0), (0, 128, 0), (128, 128, 0),  # 1=aeroplane, 2=bicycle, 3=bird
-                             (0, 0, 128), (128, 0, 128), (0, 128, 128),  # 4=boat, 5=bottle, 6=bus
-                             (128, 128, 128), (64, 0, 0), (192, 0, 0),  # 7=car, 8=cat, 9=chair
-                             (64, 128, 0), (192, 128, 0), (64, 0, 128),  # 10=cow, 11=diningtable, 12=dog
-                             (192, 0, 128), (64, 128, 128), (192, 128, 128),  # 13=horse, 14=motorbike, 15=person
-                             (0, 64, 0), (128, 64, 0), (0, 192, 0),   # 16=potted plant, 17=sheep, 18=sofa
-                             (128, 192, 0), (0, 64, 128)]  # 19=train, 20=tv/monitor
-
-        # 获取文件列表
-        input_data_file = tf.train.match_filenames_once(data_file)
-        # 输入队列
-        input_data_queue = tf.train.string_input_producer(input_data_file, shuffle=True)
+        # 获取文件列表、输入队列
+        input_data_queue = tf.train.string_input_producer(tf.train.match_filenames_once(data_file), shuffle=True)
         # 从队列中读取数据
         self._image, self._annotation = self._read_from_tf_record(input_data_queue)
-        # 处理数据：数据增强
-        self._image, self._annotation = self._process_data(self._image, self._annotation, self.input_size)
-
+        # 处理数据：数据增强：随机缩放、随机左右翻转、随机调整颜色
+        self._image, self._annotation = DataAug(self._image, self._annotation, input_size,
+                                                random_scale, random_flip, random_adjust)()
         # 成批次读取数据
-        self.image_batch, self.annotation_batch = self._get_batch_data(self._image, self._annotation, self.batch_size)
+        self.image_batch, self.annotation_batch = tf.train.shuffle_batch([self._image, self._annotation],
+                                                                         self.batch_size, 1000, 100)
         pass
 
     # 从队列中读取数据
@@ -155,20 +214,6 @@ class DataVOC2012Train(object):
         image = tf.image.decode_jpeg(features["image/encoded"], channels=3)
         annotation = tf.image.decode_png(features["image/annotation/encoded"], channels=1)
         return image, annotation
-
-    # 处理数据：数据增强
-    @staticmethod
-    def _process_data(image, annotation, input_size):
-        image = tf.image.resize_images(image, input_size, method=tf.image.ResizeMethod.BILINEAR)
-        annotation = tf.image.resize_images(annotation, input_size, method=tf.image.ResizeMethod.BILINEAR)
-        return image, annotation
-
-    # 成批次读取数据
-    @staticmethod
-    def _get_batch_data(image, annotation, batch_size):
-        capacity = 1000 + 3 * batch_size
-        image_batch, annotation_batch = tf.train.shuffle_batch([image, annotation], batch_size, capacity, 100)
-        return image_batch, annotation_batch
 
     # test
     def test(self):
@@ -192,8 +237,7 @@ class DataVOC2012Train(object):
 # 验证Data
 class DataVOC2012Val(object):
 
-    def __init__(self, data_file, number_classes, input_size, batch_size, ignore_label=255):
-
+    def __init__(self, data_file, number_classes, input_size, batch_size):
         # 类别数
         self.number_classes = number_classes
         # 输入大小
@@ -203,23 +247,15 @@ class DataVOC2012Val(object):
 
         # 数据文件
         self._data_file = data_file
-        # 忽略得标签（padding时使用）
-        self._ignore_label = ignore_label
-
-        # 图像均值
-        self._image_mean = np.array((103.939, 116.779, 123.68), dtype=np.float32)
-
-        # 获取文件列表
-        input_data_file = tf.train.match_filenames_once(data_file)
-        # 输入队列
-        input_data_queue = tf.train.string_input_producer(input_data_file, num_epochs=1, shuffle=True)
+        # 获取文件列表、输入队列
+        input_data_queue = tf.train.string_input_producer(tf.train.match_filenames_once(data_file), 1, shuffle=True)
         # 从队列中读取数据
         self._image, self._annotation = self._read_from_tf_record(input_data_queue)
         # 处理数据：数据增强
-        self._image, self._annotation = self._process_data(self._image, self._annotation, self.input_size)
-
+        self._image, self._annotation = DataAug(self._image, self._annotation, self.input_size, False, False, False)()
         # 成批次读取数据
-        self.image_batch, self.annotation_batch = self._get_batch_data(self._image, self._annotation, self.batch_size)
+        self.image_batch, self.annotation_batch = tf.train.shuffle_batch([self._image, self._annotation],
+                                                                         self.batch_size, 1000, 100)
         pass
 
     # 从队列中读取数据
@@ -234,20 +270,6 @@ class DataVOC2012Val(object):
         image = tf.image.decode_jpeg(features["image/encoded"], channels=3)
         annotation = tf.image.decode_png(features["image/annotation/encoded"], channels=1)
         return image, annotation
-
-    # 处理数据：数据增强
-    @staticmethod
-    def _process_data(image, annotation, input_size):
-        image = tf.image.resize_images(image, input_size, method=tf.image.ResizeMethod.BILINEAR)
-        annotation = tf.image.resize_images(annotation, input_size, method=tf.image.ResizeMethod.BILINEAR)
-        return image, annotation
-
-    # 成批次读取数据
-    @staticmethod
-    def _get_batch_data(image, annotation, batch_size):
-        capacity = 1000 + 3 * batch_size
-        image_batch, annotation_batch = tf.train.shuffle_batch([image, annotation], batch_size, capacity, 100)
-        return image_batch, annotation_batch
 
     # test
     def test(self):
@@ -337,12 +359,6 @@ class DataVOC2012Test(object):
         # 批次大小
         self.batch_size = batch_size
 
-        # 数据文件
-        self._data_file = data_file
-
-        # 图像均值
-        self._image_mean = np.array((103.939, 116.779, 123.68), dtype=np.float32)
-
         # color map
         self.label_colors = [(0, 0, 0),  # 0=background
                              (128, 0, 0), (0, 128, 0), (128, 128, 0),  # 1=aeroplane, 2=bicycle, 3=bird
@@ -353,14 +369,14 @@ class DataVOC2012Test(object):
                              (0, 64, 0), (128, 64, 0), (0, 192, 0),   # 16=potted plant, 17=sheep, 18=sofa
                              (128, 192, 0), (0, 64, 128)]  # 19=train, 20=tv/monitor
 
-        # 获取文件列表
-        input_data_file = tf.train.match_filenames_once(data_file)
-        # 输入队列
-        input_data_queue = tf.train.string_input_producer(input_data_file, num_epochs=1, shuffle=True)
+        # 数据文件
+        self._data_file = data_file
+        # 获取文件列表、输入队列
+        input_data_queue = tf.train.string_input_producer(tf.train.match_filenames_once(data_file), 1, shuffle=True)
         # 从队列中读取数据
         self._image, self._size, self._filename = self._read_from_tf_record(input_data_queue)
         # 处理数据
-        self._image = self._process_data(self._image, self.input_size)
+        self._image = DataAug(self._image, None, self.input_size, False, False, False)()
         # 成批次读取数据
         self.image_batch, self.size_batch, self.filename_batch = tf.train.batch([self._image, self._size,
                                                                                  self._filename], self.batch_size)
@@ -382,12 +398,6 @@ class DataVOC2012Test(object):
         width = tf.cast(features["image/width"], tf.int32)
         filename = tf.cast(features["image/filename"], tf.string)
         return image, [height, width], filename
-
-    # 处理数据：数据增强
-    @staticmethod
-    def _process_data(image, input_size):
-        image = tf.image.resize_images(image, input_size, method=tf.image.ResizeMethod.BILINEAR)
-        return image
 
     # 保存结果
     def save_result(self, prediction_batch, size_batch, filename_batch, result_path):
