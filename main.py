@@ -20,8 +20,8 @@ class Main(object):
                                         summary_path="summary", model_path="model", model_name="model.ckpt")
             self.train.train(save_freq)
         elif run_type == 2:
-            self.data = DataVOC2012Val(data_file="data/VOC2012/train.tfrecord",
-                                       number_classes=19, input_size=list([513, 513]), batch_size=1)
+            self.data = DataVOC2012Val(data_file="data/VOC2012/val.tfrecord",
+                                       number_classes=19, input_size=list([513, 513]), batch_size=8)
             self.val = ValDeepLabV3(self.data, result_root="dist", name="DeepLabV3",
                                     model_path="model", model_name="model.ckpt")
             self.val.val()
@@ -40,5 +40,5 @@ class Main(object):
 
 
 if __name__ == '__main__':
-    main = Main(total_step=100, save_freq=5, run_type=1)
+    main = Main(total_step=100, save_freq=5, run_type=3)
     pass
