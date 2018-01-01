@@ -14,6 +14,16 @@ I don't know whether this idea can be successful or not, however, I'm willing to
 - [ ] DeepLab V2
 - [ ] DeepLab V3
 
+
+## Files
+* data
+    * VOC2012
+    * MSCOCO
+
+* dist
+    * 
+
+
 ## Reference
 1. FCN
     * [FCN](https://github.com/alisure-ml/Semantic-Segmentation-FCN)
