@@ -55,6 +55,6 @@ if __name__ == '__main__':
 
     main = Main(name="RefineNet", class_list=list([TrainRefineNet, ValRefineNet, TestRefineNet]),
                 input_size=list([384, 384]), pre_train="pre_train/resnet_v1_101.ckpt",
-                batch_size_list=list([1, 2, 1]), number_classes=21, total_step=10000, save_freq=100, run_type=1,
+                batch_size_list=list([1, 2, 1]), number_classes=21, total_step=10000, save_freq=100, run_type=3,
                 result_root="dist", model_path="model", model_name="model.ckpt", test_data_path="input/test")
     pass
