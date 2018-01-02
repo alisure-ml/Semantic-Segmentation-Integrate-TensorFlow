@@ -412,6 +412,7 @@ class DataVOC2012Test(object):
                 pass
             filename = str(filename_batch[index])
             filename = filename.split("'")[1] if "" in filename else filename
+            filename = filename.replace(".jpg", ".png")
             im = Image.fromarray(new_image).convert("RGB").resize((size_batch[index][1], size_batch[index][0]))
             im.save(os.path.join(result_path, filename))
         pass

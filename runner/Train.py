@@ -108,7 +108,7 @@ class Train(object):
         annotation_batch = tf.reshape(tf.squeeze(annotation_batch, squeeze_dims=[3]), [-1, ])
 
         # 忽略大于等于类别数的标签
-        indices = tf.squeeze(tf.where(tf.less_equal(annotation_batch, number_classes - 1)), 1)
+        indices = tf.squeeze(tf.where(tf.less(annotation_batch, number_classes)), 1)
 
         annotation_op = tf.cast(tf.gather(annotation_batch, indices), tf.int32)  # [-1]
         logits_op = tf.gather(prediction_batch, indices)

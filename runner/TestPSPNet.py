@@ -2,7 +2,7 @@ from PSPNet import PSPNet
 from Test import Test
 
 
-class ValPSPNet(Test):
+class TestPSPNet(Test):
 
     def __init__(self, data, result_root="dist", name="test", model_path="model",
                  model_name="model.ckpt", output_path="output"):
