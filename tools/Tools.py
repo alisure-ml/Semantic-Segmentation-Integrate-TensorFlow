@@ -40,6 +40,8 @@ class ModelTools(object):
                 Tools.print('Restored model parameters from {}'.format(pre_train))
                 restore_op = slim.assign_from_checkpoint_fn(pre_train, slim.get_trainable_variables(), True)
                 restore_op(sess)
+            else:
+                Tools.print('No pre train file found.')
             pass
         pass
 

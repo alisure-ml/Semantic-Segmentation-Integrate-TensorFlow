@@ -103,16 +103,18 @@ class Train(object):
         pass
 
     def _build_prediction(self, logits_batch, image_batch, annotation_batch, number_classes):
+
         prediction_batch_op = tf.argmax(logits_batch, axis=3)
         prediction_batch = tf.reshape(logits_batch, [-1, number_classes])
         annotation_batch = tf.image.resize_nearest_neighbor(annotation_batch, tf.stack(logits_batch.get_shape()[1:3]))
-        annotation_batch = tf.reshape(tf.squeeze(annotation_batch, squeeze_dims=[3]), [-1, ])
+        annotation_batch = tf.reshape(annotation_batch, [-1])
 
         # 忽略大于等于类别数的标签
         indices = tf.squeeze(tf.where(tf.less(annotation_batch, number_classes)), 1)
 
-        annotation_op = tf.cast(tf.gather(annotation_batch, indices), tf.int32)  # [-1]
         logits_op = tf.gather(prediction_batch, indices)
+        annotation_op = tf.cast(tf.gather(annotation_batch, indices), tf.int32)  # [-1]
+
         prediction_op = tf.cast(tf.argmax(logits_op, axis=1), tf.int32)  # [-1]
 
         self.net_op_dict["image_batch"] = image_batch
@@ -174,7 +176,7 @@ class Train(object):
         annotation_op = self.net_op_dict["annotation_op"]
 
         loss_cross_entropy_op = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits_op,
-                                                                                              labels=annotation_op))
+                                                                                            labels=annotation_op))
         loss_op = loss_cross_entropy_op + (tf.add_n(other_loss_op) if other_loss_op is not None else 0)
 
         self.net_op_dict["loss_cross_entropy_op"] = loss_cross_entropy_op
@@ -203,7 +205,6 @@ class Train(object):
         self._build_summary()
         pass
 
-    # 训练节点
     def build_train(self, train_op):
         self.net_op_dict["train_op"] = train_op
         pass
@@ -219,6 +220,14 @@ class Train(object):
         threads = tf.train.start_queue_runners(coord=coord, sess=self.sess)
         # 迭代训练
         for step in range(self.total_step):
+
+            if step % save_freq == 0:
+                self.saver.save(self.sess, self.checkpoint_path_and_name, global_step=step)
+                self.sess.run([self.net_op_dict["mean_iou_initializer_op"],
+                               self.net_op_dict["mean_pca_initializer_op"],
+                               self.net_op_dict["acc_initializer_op"]])
+                Tools.print('The checkpoint has been created.')
+
             start_time = time.time()
             loss, _, _, _, _, summary = self.sess.run([self.net_op_dict["loss_op"],
                                                        self.net_op_dict["mean_iou_update_op"],
@@ -234,13 +243,6 @@ class Train(object):
                                                      self.net_op_dict["acc_op"]])
             Tools.print('step {:d} loss={:.3f}, mean iou={}, mean pca={}, acc={} ({:.3f} sec/step)'
                         .format(step, loss, mean_iou, mean_pca, acc, duration))
-
-            if step % save_freq == 0:
-                self.saver.save(self.sess, self.checkpoint_path_and_name, global_step=step)
-                self.sess.run([self.net_op_dict["mean_iou_initializer_op"],
-                               self.net_op_dict["mean_pca_initializer_op"],
-                               self.net_op_dict["acc_initializer_op"]])
-                Tools.print('The checkpoint has been created.')
             pass
 
         coord.request_stop()

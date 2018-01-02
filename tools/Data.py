@@ -102,11 +102,13 @@ class ImageToTFRecordVOC2012(object):
 #   3.测试：此时image不为空，annotation为空，random_scale/random_filp/random_adjust为False
 class DataAug(object):
 
-    def __init__(self, image, annotation, input_size, random_scale, random_flip, random_adjust):
+    def __init__(self, image, annotation, input_size, sub_mean, random_scale, random_flip, random_adjust):
         self.image = image
         self.annotation = annotation
         self.input_size = input_size
 
+        # 是否减去均值
+        self._sub_mean = sub_mean
         # 是否随机缩放
         self._random_scale = random_scale
         # 是否随机左右翻转
@@ -124,7 +126,8 @@ class DataAug(object):
         self.image = tf.cast(tf.concat(axis=2, values=[img_b, img_g, img_r]), dtype=tf.float32)
 
         # 减均值
-        self.image -= self._image_mean
+        if self._sub_mean:
+            self.image -= self._image_mean
 
         # 随机缩放
         if self._random_scale:
@@ -179,7 +182,7 @@ class DataAug(object):
 # 训练Data
 class DataVOC2012Train(object):
 
-    def __init__(self, data_file, number_classes, input_size, batch_size,
+    def __init__(self, data_file, number_classes, input_size, batch_size, sub_mean=True,
                  random_scale=True, random_flip=True, random_adjust=True):
         # 类别数
         self.number_classes = number_classes
@@ -195,7 +198,7 @@ class DataVOC2012Train(object):
         # 从队列中读取数据
         self._image, self._annotation = self._read_from_tf_record(input_data_queue)
         # 处理数据：数据增强：随机缩放、随机左右翻转、随机调整颜色
-        self._image, self._annotation = DataAug(self._image, self._annotation, input_size,
+        self._image, self._annotation = DataAug(self._image, self._annotation, input_size, sub_mean,
                                                 random_scale, random_flip, random_adjust)()
         # 成批次读取数据
         self.image_batch, self.annotation_batch = tf.train.shuffle_batch([self._image, self._annotation],
@@ -237,7 +240,7 @@ class DataVOC2012Train(object):
 # 验证Data
 class DataVOC2012Val(object):
 
-    def __init__(self, data_file, number_classes, input_size, batch_size):
+    def __init__(self, data_file, number_classes, input_size, batch_size, sub_mean=True):
         # 类别数
         self.number_classes = number_classes
         # 输入大小
@@ -252,7 +255,7 @@ class DataVOC2012Val(object):
         # 从队列中读取数据
         self._image, self._annotation = self._read_from_tf_record(input_data_queue)
         # 处理数据：数据增强
-        self._image, self._annotation = DataAug(self._image, self._annotation, self.input_size, False, False, False)()
+        self._image, self._annotation = DataAug(self._image, self._annotation, self.input_size, sub_mean, False, False, False)()
         # 成批次读取数据
         self.image_batch, self.annotation_batch = tf.train.shuffle_batch([self._image, self._annotation],
                                                                          self.batch_size, 1000, 100)
@@ -351,7 +354,7 @@ class ImageToTFRecordTest(object):
 # 测试Data
 class DataVOC2012Test(object):
 
-    def __init__(self, data_file, number_classes, input_size, batch_size):
+    def __init__(self, data_file, number_classes, input_size, batch_size, sub_mean=True):
         # 类别数
         self.number_classes = number_classes
         # 输入大小
@@ -376,7 +379,7 @@ class DataVOC2012Test(object):
         # 从队列中读取数据
         self._image, self._size, self._filename = self._read_from_tf_record(input_data_queue)
         # 处理数据
-        self._image = DataAug(self._image, None, self.input_size, False, False, False)()
+        self._image = DataAug(self._image, None, self.input_size, sub_mean, False, False, False)()
         # 成批次读取数据
         self.image_batch, self.size_batch, self.filename_batch = tf.train.batch([self._image, self._size,
                                                                                  self._filename], self.batch_size)
@@ -413,12 +416,13 @@ class DataVOC2012Test(object):
             filename = str(filename_batch[index])
             filename = filename.split("'")[1] if "" in filename else filename
             filename = filename.replace(".jpg", ".png")
-            im = Image.fromarray(new_image).convert("RGB").resize((size_batch[index][1], size_batch[index][0]))
+            im = Image.fromarray(new_image).convert("RGB").resize((size_batch[index][1], size_batch[index][0]),
+                                                                  resample=Image.BILINEAR)
             im.save(os.path.join(result_path, filename))
         pass
 
     # test
-    def test(self):
+    def _test(self):
         with tf.Session() as sess:
             sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
 
