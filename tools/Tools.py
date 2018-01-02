@@ -1,6 +1,7 @@
 import os
 import time
 import tensorflow as tf
+from tensorflow.contrib import slim
 
 
 class Tools(object):
@@ -26,7 +27,7 @@ class ModelTools(object):
 
     # 如果模型存在，恢复模型
     @staticmethod
-    def restore(sess, saver, log_dir):
+    def restore(sess, saver, log_dir, pre_train=None):
         # 加载模型
         ckpt = tf.train.get_checkpoint_state(log_dir)
         if ckpt and ckpt.model_checkpoint_path:
@@ -34,6 +35,11 @@ class ModelTools(object):
             Tools.print("Restored model parameters from {}".format(ckpt.model_checkpoint_path))
         else:
             Tools.print('No checkpoint file found.')
+            # load pre train
+            if pre_train is not None:
+                Tools.print('Restored model parameters from {}'.format(pre_train))
+                restore_op = slim.assign_from_checkpoint_fn(pre_train, slim.get_trainable_variables(), True)
+                restore_op(sess)
             pass
         pass
 

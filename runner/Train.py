@@ -16,12 +16,13 @@ from Tools import Tools, ModelTools
 
 class Train(object):
 
-    def __init__(self, total_step, result_root, name, summary_path, model_path, model_name,
+    def __init__(self, total_step, result_root, name, summary_path, model_path, model_name, pre_train,
                  learn_rate_base, power, momentum):
         # 训练总步数
         self.total_step = total_step
 
         # 和保存模型相关的参数
+        self.pre_train = pre_train
         self.summary_path = Tools.new_dir(os.path.join(result_root, name, summary_path))
         self.model_path = Tools.new_dir(os.path.join(result_root, name, model_path))
         self.checkpoint_path_and_name = os.path.join(self.model_path, model_name)
@@ -210,7 +211,7 @@ class Train(object):
     # 通用训练
     def train(self, save_freq=100):
         # 加载模型
-        ModelTools.restore(self.sess, self.saver, self.model_path)
+        ModelTools.restore(self.sess, self.saver, self.model_path, self.pre_train)
 
         tf.set_random_seed(1234)
         coord = tf.train.Coordinator()
