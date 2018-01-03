@@ -26,7 +26,7 @@ class Main(object):
         if run_type == 1:
             self.data = DataVOC2012Train(data_file="data/VOC2012/train.tfrecord", number_classes=number_classes,
                                          input_size=input_size, batch_size=batch_size_list[0], sub_mean=sub_mean,
-                                         random_scale=False, random_flip=False, random_adjust=False)
+                                         random_scale=True, random_flip=True, random_adjust=True)
             self.train = class_list[0](self.data, total_step=total_step,
                                        result_root=result_root, name=name,
                                        summary_path="summary", model_path=model_path,
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     #             result_root="dist", model_path="model", model_name="model.ckpt", test_data_path="input/test")
 
     main = Main(name="RefineNet", class_list=list([TrainRefineNet, ValRefineNet, TestRefineNet]),
-                input_size=list([384, 384]), pre_train="pre_train/resnet_v1_101.ckpt", sub_mean=False,
-                batch_size_list=list([1, 2, 1]), number_classes=21, total_step=50000, save_freq=1000, run_type=1,
+                input_size=list([384, 384]), pre_train="pre_train/resnet_v1_101.ckpt", sub_mean=True,
+                batch_size_list=list([8, 2, 1]), number_classes=21, total_step=100000, save_freq=1000, run_type=1,
                 result_root="dist", model_path="model", model_name="model.ckpt", test_data_path="input/test")
     pass

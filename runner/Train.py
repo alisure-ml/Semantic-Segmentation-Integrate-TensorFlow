@@ -223,10 +223,11 @@ class Train(object):
 
             if step % save_freq == 0:
                 self.saver.save(self.sess, self.checkpoint_path_and_name, global_step=step)
-                self.sess.run([self.net_op_dict["mean_iou_initializer_op"],
-                               self.net_op_dict["mean_pca_initializer_op"],
-                               self.net_op_dict["acc_initializer_op"]])
                 Tools.print('The checkpoint has been created.')
+
+            self.sess.run([self.net_op_dict["mean_iou_initializer_op"],
+                           self.net_op_dict["mean_pca_initializer_op"],
+                           self.net_op_dict["acc_initializer_op"]])
 
             start_time = time.time()
             loss, _, _, _, _, summary = self.sess.run([self.net_op_dict["loss_op"],
@@ -238,6 +239,7 @@ class Train(object):
                                                       feed_dict={self.net_op_dict["step_op"]: step})
             duration = time.time() - start_time
             self.summary_writer.add_summary(summary, step)
+
             mean_iou, mean_pca, acc = self.sess.run([self.net_op_dict["mean_iou_op"],
                                                      self.net_op_dict["mean_pca_op"],
                                                      self.net_op_dict["acc_op"]])
